@@ -1,4 +1,5 @@
 const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
 
 const User = require("../users/model");
 
@@ -19,23 +20,13 @@ const hashPass = async (req, res, next) => {
   }
 };
 
-// const login = async (req, res) => {
-//   try {
-//     const user = await User.findOne({ include: { all: true } });
-//     if (!user) {
-//       res.status(402).json({ message: err.message, err: err });
-//     }
-
-//     comparePass();
-//     res.send("hello world");
-//   } catch (error) {
-//     res.status(500).json({ message: error.message, error: error });
-//   }
-// };
-
 const comparePass = async (req, res, next) => {
   try {
     const user = await User.findOne({ where: { username: req.body.username } });
+    if (!user) {
+      res.status(401).json({ message: "invalid username" });
+      return;
+    }
 
     const matched = await bcrypt.compare(
       req.body.password,
@@ -46,6 +37,7 @@ const comparePass = async (req, res, next) => {
 
     if (!matched) {
       res.status(401).json({ message: "no!!!!!!!!!!!" });
+      return;
     }
     //...
 
@@ -75,16 +67,62 @@ const comparePass = async (req, res, next) => {
     // next()
     req.user = user;
     next();
-    res
-      .status(201)
-      .json({ message: "Successfully logged in!", user: req.user });
   } catch (err) {
     res.status(501).json({ message: err.message, err: err });
   }
 };
 
+const tokenCheck = async (req, res, next) => {
+  try {
+    console.log(req.header("Authorization"));
+
+    // 1 check request headers
+
+    if (!req.header("Authorization")) {
+      throw new Error("no token passed");
+    }
+
+    // 2 get the jwt from Headers
+
+    const token = req.header("Authorization").replace("Bearer ", "");
+
+    // 3 decode the token using SECRET
+
+    const decodedToken = await jwt.verify(token, process.env.SECRET);
+
+    // 4 get user with Id
+
+    const user = await User.findOne({ where: { id: decodedToken.id } });
+
+    // 5 if !user send 401 response
+
+    if (!user) {
+      res.status(401).json({ message: "Not Authorized" });
+      return;
+    }
+
+    // 6 pass on user data
+
+    req.authCheck = user;
+
+    next();
+  } catch (err) {
+    res.status(501).json({ message: err.message, err: err });
+  }
+};
+
+const emailValidation = async (req, res, next) => {
+  // validate email
+  next();
+};
+
+const passwordValdation = async (req, res, next) => {
+  // validate password
+  next();
+};
+
 module.exports = {
   hashPass: hashPass,
   comparePass: comparePass,
-  // login: login,
+  tokenCheck: tokenCheck,
 };

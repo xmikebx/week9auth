@@ -1,5 +1,6 @@
 const sequelize = require("../db/connection");
 const User = require("./model");
+const jwt = require("jsonwebtoken");
 
 const signupUser = async (req, res) => {
   try {
@@ -8,19 +9,18 @@ const signupUser = async (req, res) => {
       email: req.body.email,
       password: req.body.password,
     });
-    res.status(201).json({ message: "user added", user: user });
-  } catch (error) {
-    res.status(500).json({ message: error.message, error: error });
+    res.status(201).json({ message: `${user.username} added`, user: user });
+  } catch (err) {
+    res.status(500).json({ message: err.message, err: err });
   }
 };
 
 const getAllUsers = async (req, res) => {
   try {
     const users = await User.findAll();
-    console.log("Route: ", req.path);
-    res.send({ message: "all the users", users: users });
-  } catch (error) {
-    res.send({ message: "its gone pete tong", error: error });
+    res.status(200).json({ message: "all users", users: users });
+  } catch (err) {
+    res.status(500).json({ message: err.message, err: err });
   }
 };
 
@@ -28,37 +28,69 @@ const getOneUser = async (req, res) => {
   try {
     const user = await User.findOne({
       where: { username: req.params.username },
+      username: req.body.username,
+      email: req.body.email,
+      password: req.body.password,
     });
 
-    console.log("Route: ", req.path);
+    console.log("Route: ", req.path, user.username, user.email, user.password);
     if (!user) {
       res.status(404).json({ message: "username not found" });
     }
 
-    res.status(200).json({ message: "user found", user: req.user });
-  } catch (error) {
-    res.status(500).json({ message: error.message, error: error });
+    res.status(200).json({
+      message: "user found",
+      username: user.username,
+      email: user.email,
+      password: user.password,
+    });
+
+    // res.status(200).json({ message: "user found", user.username, user.email, user.password });
+  } catch (err) {
+    res.status(500).json({ message: err.message, err: err });
   }
 };
 
 const login = async (req, res) => {
   try {
-    const user = await User.findOne({
-      where: { username: req.body.username },
-    });
-    if (!user) {
-      res.status(401).json({ message: "username not found" });
+    if (req.authCheck) {
+      const user = {
+        id: req.authCheck.id,
+        username: req.authCheck.username,
+      };
+
+      res
+        .status(201)
+        .json({ message: "persistent login successful", user: user });
+      return;
     }
-    res.send({ message: "hello", user: user });
-    // const pass = await User.findOne({
-    //   where: { username: req.body.password },
-    // });
-    // if (!pass) {
-    //   res.status(401).json({ message: "password invalid" });
-    // }
-    // res.send({ message: "hello", user: user });
+
+    const token = await jwt.sign({ id: req.user.id }, process.env.SECRET);
+
+    console.log(token);
+
+    const user = {
+      id: req.user.id,
+      username: req.user.username,
+      token: token,
+    };
+    console.log(user);
+
+    res.status(201).json({ message: "hello from the BE", user: user });
+  } catch (err) {
+    res.status(500).json({ message: err.message, err: err });
+  }
+};
+
+const updateUser = async (req, res) => {
+  try {
+    const updatedUser = await User.update(
+      { email: req.body.email },
+      { where: { username: req.body.username } }
+    );
+    res.send({ message: "user updated", updatedUser });
   } catch (error) {
-    res.status(500).json({ message: error.message, error: error });
+    res.send({ message: "its gone pete tong", error: error });
   }
 };
 
@@ -67,4 +99,5 @@ module.exports = {
   getAllUsers: getAllUsers,
   login: login,
   getOneUser: getOneUser,
+  updateUser: updateUser,
 };
